@@ -234,7 +234,9 @@ def _build_spec_from_cli(
     silent: bool,
     save_result_to_inbox: Optional[bool] = None,
     share_session: bool = True,
+    max_concurrency: int = 1,
     timeout_seconds: int = 120,
+    misfire_grace_seconds: int = 600,
     tool_safety: bool = False,
 ) -> dict:
     """Build CronJobSpec JSON payload from CLI args (no id)."""
@@ -258,9 +260,9 @@ def _build_spec_from_cli(
     }
     runtime = {
         "share_session": share_session,
-        "max_concurrency": 1,
+        "max_concurrency": max_concurrency,
         "timeout_seconds": timeout_seconds,
-        "misfire_grace_seconds": 600,
+        "misfire_grace_seconds": misfire_grace_seconds,
         "tool_safety": tool_safety,
     }
     if task_type == "text":
@@ -695,10 +697,15 @@ def _resolve_update_spec(
         if share_session is not None
         else spec.get("runtime", {}).get("share_session", True)
     )
+    t_max_concurrency = spec.get("runtime", {}).get("max_concurrency", 1)
     t_timeout = (
         timeout_seconds
         if timeout_seconds is not None
         else spec.get("runtime", {}).get("timeout_seconds", 120)
+    )
+    t_misfire_grace = spec.get("runtime", {}).get(
+        "misfire_grace_seconds",
+        600,
     )
     t_tool_safety = (
         tool_safety
@@ -740,9 +747,22 @@ def _resolve_update_spec(
         silent=t_silent,
         save_result_to_inbox=t_save,
         share_session=t_share,
+        max_concurrency=t_max_concurrency,
         timeout_seconds=t_timeout,
+        misfire_grace_seconds=t_misfire_grace,
         tool_safety=t_tool_safety,
     )
+
+    # Agent requests may carry passthrough fields that have no dedicated CLI
+    # flag (for example request_context or a model override).  Rebuilding the
+    # request from --text used to drop them on unrelated updates.
+    if t_type == "agent" and spec.get("task_type") == "agent":
+        existing_request = spec.get("request")
+        if isinstance(existing_request, dict):
+            payload["request"] = {
+                **existing_request,
+                "input": payload["request"]["input"],
+            }
 
     # Preserve existing meta
     existing_meta = spec.get("meta")
