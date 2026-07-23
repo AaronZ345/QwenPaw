@@ -25,7 +25,7 @@ export function parseEvery(every: string): EveryParts {
   const hours = parseInt(m.groups.hours ?? "0", 10);
   const minutes = parseInt(m.groups.minutes ?? "0", 10);
   const seconds = parseInt(m.groups.seconds ?? "0", 10);
-  const totalMinutes = hours * 60 + minutes + Math.round(seconds / 60);
+  const totalMinutes = hours * 60 + minutes + Math.ceil(seconds / 60);
   if (totalMinutes <= 0) {
     return { number: 6, unit: "h" };
   }

@@ -17,6 +17,12 @@ describe("parseEvery", () => {
   it("mixed 2h30m → total minutes 150 (not divisible by 60)", () => {
     expect(parseEvery("2h30m")).toEqual({ number: 150, unit: "m" });
   });
+
+  it("rounds seconds up to the nearest minute", () => {
+    expect(parseEvery("29s")).toEqual({ number: 1, unit: "m" });
+    expect(parseEvery("30s")).toEqual({ number: 1, unit: "m" });
+    expect(parseEvery("90s")).toEqual({ number: 2, unit: "m" });
+  });
 });
 
 describe("serializeEvery", () => {
