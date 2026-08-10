@@ -12,6 +12,11 @@ mod tray;
 mod updates;
 
 use tauri::{Manager, RunEvent, WebviewWindow, WindowEvent};
+use tauri_plugin_window_state::StateFlags;
+
+fn window_state_flags() -> StateFlags {
+    StateFlags::POSITION | StateFlags::SIZE
+}
 
 /// Opens the WebView DevTools. Gated by the hidden 8-click logo gesture in the
 /// frontend so end users cannot open DevTools via the default context menu or
@@ -27,6 +32,11 @@ pub fn run() {
     let build_result = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(window_state_flags())
+                .build(),
+        )
         .plugin(
             tauri_plugin_updater::Builder::new()
                 .default_version_comparator(updates::is_remote_update_newer)
@@ -107,5 +117,19 @@ pub fn run() {
             eprintln!("[QwenPaw Desktop] Fatal startup error: {err}");
             std::process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri_plugin_window_state::StateFlags;
+
+    #[test]
+    fn window_state_persists_geometry_only() {
+        assert_eq!(
+            window_state_flags().bits(),
+            (StateFlags::POSITION | StateFlags::SIZE).bits(),
+        );
     }
 }
