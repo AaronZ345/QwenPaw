@@ -170,6 +170,7 @@ def build_mcp_driver_card(
         _preserve_oauth_authorization_binding(existing, endpoint)
         env_aliases = header_plan.env_aliases
 
+    endpoint["timeout"] = float(data.get("timeout") or 120.0)
     credentials = _credential_refs_from_existing(existing)
     for alias, ref in list(credentials.items()):
         if ref.ref.startswith("env:"):
@@ -258,6 +259,7 @@ def build_mcp_client_info_payload(
         "args": list(endpoint.get("args") or []),
         "env": env,
         "cwd": str(endpoint.get("cwd") or ""),
+        "timeout": float(endpoint.get("timeout") or 120.0),
         "tools": card.config.get("tools"),
         "oauth_status": _oauth_status(oauth_credential),
         "access_summary": {
@@ -378,6 +380,7 @@ def _card_to_client_data(card: DriverCard | None) -> dict[str, Any]:
             env_aliases=env_aliases,
         ),
         "cwd": endpoint.get("cwd") or "",
+        "timeout": float(endpoint.get("timeout") or 120.0),
     }
 
 

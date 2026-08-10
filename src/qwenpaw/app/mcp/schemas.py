@@ -60,6 +60,11 @@ class MCPClientInfo(BaseModel):
         default="",
         description="Working directory for stdio MCP command",
     )
+    timeout: float = Field(
+        default=120.0,
+        gt=0,
+        description="Maximum duration of one MCP tool call in seconds",
+    )
     tools: Optional[List[str]] = Field(
         default=None,
         description="Tool whitelist. Only listed tools will be loaded. "
@@ -112,6 +117,11 @@ class MCPClientCreateRequest(BaseModel):
         default="",
         description="Working directory for stdio MCP command",
     )
+    timeout: float = Field(
+        default=120.0,
+        gt=0,
+        description="Maximum duration of one MCP tool call in seconds",
+    )
     tools: Optional[List[str]] = Field(
         default=None,
         description="Tool whitelist. Only listed tools will be loaded. "
@@ -155,6 +165,11 @@ class MCPClientUpdateRequest(BaseModel):
     cwd: Optional[str] = Field(
         None,
         description="Working directory for stdio MCP command",
+    )
+    timeout: Optional[float] = Field(
+        None,
+        gt=0,
+        description="Maximum duration of one MCP tool call in seconds",
     )
     tools: Optional[List[str]] = Field(
         None,

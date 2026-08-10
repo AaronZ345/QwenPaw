@@ -65,6 +65,7 @@ class MCPDriverHandler(DriverHandler):
         """Create and connect StdIO / Auto / HttpStateful MCP clients."""
         endpoint = self._card.endpoint
         transport = str(endpoint.get("transport") or "stdio")
+        tool_call_timeout = float(endpoint.get("timeout") or 120.0)
         credentials = await self._resolve_credentials()
 
         if transport == "stdio":
@@ -77,6 +78,7 @@ class MCPDriverHandler(DriverHandler):
                     credentials,
                 ),
                 cwd=endpoint.get("cwd") or None,
+                tool_call_timeout=tool_call_timeout,
             )
         else:
             headers = resolve_binding(
@@ -95,6 +97,7 @@ class MCPDriverHandler(DriverHandler):
                 transport=transport,
                 url=str(endpoint.get("url") or ""),
                 headers=headers or None,
+                tool_call_timeout=tool_call_timeout,
             )
 
         try:

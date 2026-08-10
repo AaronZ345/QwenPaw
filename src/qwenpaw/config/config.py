@@ -2367,6 +2367,11 @@ class MCPClientConfig(BaseModel):
     args: List[str] = Field(default_factory=list)
     env: Dict[str, str] = Field(default_factory=dict)
     cwd: str = ""
+    timeout: float = Field(
+        default=120.0,
+        gt=0,
+        description="Maximum duration of one MCP tool call in seconds.",
+    )
     tools: Optional[List[str]] = Field(
         default=None,
         description="Tool whitelist. Only listed tools will be loaded. "

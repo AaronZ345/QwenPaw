@@ -260,6 +260,7 @@ def legacy_mcp_client_to_driver(
             "headers": header_binding,
         }
 
+    endpoint["timeout"] = float(getattr(config, "timeout", 120.0) or 120.0)
     credential = _build_legacy_credential(
         client_key,
         oauth,
