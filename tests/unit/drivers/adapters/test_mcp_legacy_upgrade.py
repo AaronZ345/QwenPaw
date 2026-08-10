@@ -14,7 +14,17 @@ from pathlib import Path
 
 import pytest
 
+from qwenpaw.app.mcp.schemas import (
+    MCPClientCreateRequest,
+    MCPClientUpdateRequest,
+)
+from qwenpaw.config.config import MCPClientConfig
+from qwenpaw.drivers.adapters.mcp_card_builder import (
+    build_mcp_client_info_payload,
+    build_mcp_driver_card,
+)
 from qwenpaw.drivers.adapters.mcp_legacy_config import (
+    legacy_mcp_client_to_driver,
     upgrade_legacy_mcp_credentials,
 )
 from qwenpaw.drivers.contracts import CredentialRef, DriverCard, PolicyRule
@@ -22,6 +32,39 @@ from qwenpaw.drivers.credentials.store import AsyncCredentialStore
 from qwenpaw.drivers.credentials.types import CredentialRecord
 from qwenpaw.drivers.manager import DriverManager
 from qwenpaw.drivers.storage import card_path, dump_card, load_card
+
+
+def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
+    legacy = MCPClientConfig(
+        name="slow-server",
+        command="python",
+        timeout=5.0,
+    )
+    assert legacy.timeout == 5.0
+
+    migrated, _ = legacy_mcp_client_to_driver("slow-server", legacy)
+    assert migrated.endpoint["timeout"] == 5.0
+
+    created = MCPClientCreateRequest(
+        name="slow-server",
+        command="python",
+        timeout=7.0,
+    )
+    card = build_mcp_driver_card(
+        "slow-server",
+        created,
+        "mcp/slow-server",
+    )
+    assert card.endpoint["timeout"] == 7.0
+    assert build_mcp_client_info_payload(card, None)["timeout"] == 7.0
+
+    updated = build_mcp_driver_card(
+        "slow-server",
+        MCPClientUpdateRequest(timeout=9.0),
+        "mcp/slow-server",
+        existing=card,
+    )
+    assert updated.endpoint["timeout"] == 9.0
 
 
 def _write_card(

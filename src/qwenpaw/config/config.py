@@ -2560,6 +2560,11 @@ class MCPClientConfig(BaseModel):
         "raises the read (sse_read_timeout) budget to at least this value. "
         "None keeps the client default (30s / 300s).",
     )
+    timeout: float = Field(
+        default=120.0,
+        gt=0,
+        description="Maximum duration of one MCP tool call in seconds.",
+    )
     tools: Optional[List[str]] = Field(
         default=None,
         description="Tool whitelist. Only listed tools will be loaded. "
