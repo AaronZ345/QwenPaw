@@ -35,6 +35,9 @@ from qwenpaw.exceptions import (
     AgentConfigConflictError,
     ConfigurationException,
 )
+from qwenpaw.mcp_timeout import (
+    DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+)
 
 from .timezone import detect_system_timezone
 from ..constant import (
@@ -2367,10 +2370,13 @@ class MCPClientConfig(BaseModel):
     args: List[str] = Field(default_factory=list)
     env: Dict[str, str] = Field(default_factory=dict)
     cwd: str = ""
-    timeout: float = Field(
-        default=120.0,
+    tool_call_timeout: float = Field(
+        default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         gt=0,
-        description="Maximum duration of one MCP tool call in seconds.",
+        description=(
+            "Maximum duration of one MCP tool call in seconds. This does not "
+            "change HTTP connect/write/pool transport timeouts."
+        ),
     )
     tools: Optional[List[str]] = Field(
         default=None,
@@ -2396,6 +2402,9 @@ class MCPClientConfig(BaseModel):
 
         if "type" in payload and "transport" not in payload:
             payload["transport"] = payload["type"]
+
+        if "timeout" in payload and "tool_call_timeout" not in payload:
+            payload["tool_call_timeout"] = payload["timeout"]
 
         if (
             "transport" not in payload

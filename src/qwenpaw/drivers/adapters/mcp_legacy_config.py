@@ -38,6 +38,7 @@ from ..contracts import (
     PolicyTarget,
 )
 from ..credentials.types import CredentialRecord
+from ...mcp_timeout import get_mcp_tool_call_timeout
 from ..manager import DriverManager
 from ..storage import load_card
 
@@ -260,7 +261,9 @@ def legacy_mcp_client_to_driver(
             "headers": header_binding,
         }
 
-    endpoint["timeout"] = float(getattr(config, "timeout", 120.0) or 120.0)
+    endpoint["tool_call_timeout"] = get_mcp_tool_call_timeout(
+        config.model_dump(),
+    )
     credential = _build_legacy_credential(
         client_key,
         oauth,

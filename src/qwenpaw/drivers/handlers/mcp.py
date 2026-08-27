@@ -31,6 +31,7 @@ from ..credentials.bindings import (
     implicit_auth_headers,
     resolve_binding,
 )
+from ...mcp_timeout import get_mcp_tool_call_timeout
 from .mcp_stateful_client import (
     HttpStatefulClient,
     StdIOStatefulClient,
@@ -65,7 +66,7 @@ class MCPDriverHandler(DriverHandler):
         """Create and connect StdIO / Auto / HttpStateful MCP clients."""
         endpoint = self._card.endpoint
         transport = str(endpoint.get("transport") or "stdio")
-        tool_call_timeout = float(endpoint.get("timeout") or 120.0)
+        tool_call_timeout = get_mcp_tool_call_timeout(endpoint)
         credentials = await self._resolve_credentials()
 
         if transport == "stdio":
@@ -265,6 +266,13 @@ class MCPDriverHandler(DriverHandler):
 def validate_mcp_endpoint(card: DriverCard) -> None:
     """Validate MCP endpoint shape beyond generic DriverCard checks."""
     endpoint = card.endpoint
+    try:
+        get_mcp_tool_call_timeout(endpoint)
+    except ValueError as exc:
+        raise DriverCardError(
+            f"DriverCard {card.name} endpoint.tool_call_timeout " f"{exc}",
+        ) from exc
+
     transport = str(endpoint.get("transport") or "stdio")
     if transport == "stdio":
         command = endpoint.get("command")
