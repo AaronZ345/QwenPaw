@@ -645,6 +645,8 @@
     "newChatTooltip": "Cuộc trò chuyện mới",
     "searchTooltip": "Tìm kiếm tất cả cuộc trò chuyện",
     "chatHistoryTooltip": "Lịch sử trò chuyện",
+    "hideToolCallsTooltip": "Ẩn lệnh gọi công cụ",
+    "showToolCallsTooltip": "Hiện lệnh gọi công cụ",
     "allChats": "Tất cả cuộc trò chuyện",
     "createNewChat": "Tạo cuộc trò chuyện mới",
     "pinDrawer": "Ghim",

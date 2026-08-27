@@ -1140,6 +1140,8 @@ const timestampStyle: React.CSSProperties = {
 };
 
 const HISTORY_PANEL_STORAGE_KEY = "qwenpaw_history_panel_open";
+const SHOW_TOOL_CALLS_STORAGE_KEY = "qwenpaw_show_tool_calls";
+const HiddenToolCallRenderer: React.FC<any> = () => null;
 
 /**
  * Temporary local session ids (created before the first message is sent) are
@@ -1576,6 +1578,24 @@ export default function ChatPage() {
         } else {
           localStorage.removeItem(HISTORY_PANEL_STORAGE_KEY);
         }
+      } catch {
+        // storage unavailable
+      }
+      return next;
+    });
+  }, []);
+  const [showToolCalls, setShowToolCalls] = useState(() => {
+    try {
+      return localStorage.getItem(SHOW_TOOL_CALLS_STORAGE_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const toggleToolCalls = useCallback(() => {
+    setShowToolCalls((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SHOW_TOOL_CALLS_STORAGE_KEY, String(next));
       } catch {
         // storage unavailable
       }
@@ -3068,6 +3088,16 @@ export default function ChatPage() {
       ...toolRenderConfig,
       ...pluginToolRenderers,
     };
+    const finalToolRenderers: Record<string, React.FC<any>> = showToolCalls
+      ? withGenericFallback(mergedToolRenderers)
+      : new Proxy(
+          {},
+          {
+            get() {
+              return HiddenToolCallRenderer;
+            },
+          },
+        );
 
     const pluginCards: Record<string, React.FC<any>> = {};
     for (const e of extLists[ChatList.cards]) {
@@ -3142,6 +3172,8 @@ export default function ChatPage() {
               historyOpen={effectiveIsFullMode ? historyPanelOpen : false}
               isWideMode={isWideMode}
               onToggleWideMode={toggleWideMode}
+              showToolCalls={showToolCalls}
+              onToggleToolCalls={toggleToolCalls}
             />
             {pluginRightHeader}
           </>
@@ -3448,7 +3480,7 @@ export default function ChatPage() {
           );
         },
       },
-      customToolRenderConfig: withGenericFallback(mergedToolRenderers),
+      customToolRenderConfig: finalToolRenderers,
       cards: {
         // Host wrappers that delegate to vendor defaults when no plugin
         // request/response render/prepend/append is registered — and
@@ -3569,6 +3601,8 @@ export default function ChatPage() {
     sessionScope,
     filesWorkspaceOpen,
     toggleFilesWorkspace,
+    showToolCalls,
+    toggleToolCalls,
     isOwner,
     bgTaskCount,
     bgBackendSessionId,
