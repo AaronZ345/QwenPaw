@@ -651,6 +651,23 @@ class Provider(ProviderInfo, ABC):  # pylint: disable=too-many-public-methods
             ),
         )
 
+    def _update_media_cap_config(self, config: Dict) -> None:
+        """Update provider-level inline media cap settings."""
+        for cap_field in (
+            "max_inline_media_bytes",
+            "max_image_bytes",
+            "max_video_bytes",
+            "max_audio_bytes",
+        ):
+            if cap_field not in config:
+                continue
+            value = config[cap_field]
+            if value is None:
+                if cap_field != "max_inline_media_bytes":
+                    setattr(self, cap_field, None)
+            else:
+                setattr(self, cap_field, int(value))
+
     def update_config(self, config: Dict) -> None:
         """Update provider configuration with the given dictionary."""
         if "name" in config and config["name"] is not None:
@@ -692,20 +709,7 @@ class Provider(ProviderInfo, ABC):  # pylint: disable=too-many-public-methods
             self.custom_headers = {
                 str(k): str(v) for k, v in config["custom_headers"].items()
             }
-        for cap_field in (
-            "max_inline_media_bytes",
-            "max_image_bytes",
-            "max_video_bytes",
-            "max_audio_bytes",
-        ):
-            if cap_field not in config:
-                continue
-            value = config[cap_field]
-            if value is None:
-                if cap_field != "max_inline_media_bytes":
-                    setattr(self, cap_field, None)
-            else:
-                setattr(self, cap_field, int(value))
+        self._update_media_cap_config(config)
         if "auth_mode" in config and config["auth_mode"] in (
             "api_key",
             "auth_token",

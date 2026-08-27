@@ -3720,13 +3720,21 @@ def test_provider_group_metadata(isolated_secret_dir) -> None:
     [
         (
             "openai",
-            (OPENAI_IMAGE_BYTES, OPENAI_IMAGE_BYTES, OPENAI_VIDEO_BYTES,
-             OPENAI_AUDIO_BYTES),
+            (
+                OPENAI_IMAGE_BYTES,
+                OPENAI_IMAGE_BYTES,
+                OPENAI_VIDEO_BYTES,
+                OPENAI_AUDIO_BYTES,
+            ),
         ),
         (
             "openai-response",
-            (OPENAI_IMAGE_BYTES, OPENAI_IMAGE_BYTES, OPENAI_VIDEO_BYTES,
-             OPENAI_AUDIO_BYTES),
+            (
+                OPENAI_IMAGE_BYTES,
+                OPENAI_IMAGE_BYTES,
+                OPENAI_VIDEO_BYTES,
+                OPENAI_AUDIO_BYTES,
+            ),
         ),
         (
             "anthropic",

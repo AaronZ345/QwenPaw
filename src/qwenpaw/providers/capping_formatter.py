@@ -138,7 +138,9 @@ class CappingFormatterMixin:  # pylint: disable=too-few-public-methods
             "text": self._placeholder_text(
                 kind,
                 size,
-                self._max_bytes_for_kind(kind) if max_bytes is None else max_bytes,
+                self._max_bytes_for_kind(kind)
+                if max_bytes is None
+                else max_bytes,
             ),
         }
 
@@ -291,8 +293,10 @@ class _CappingGeminiFormatter(GeminiChatFormatter, CappingFormatterMixin):
             "text": self._placeholder_text(
                 kind,
                 size,
-                self._max_bytes_for_kind(kind) if max_bytes is None else max_bytes,
-            )
+                self._max_bytes_for_kind(kind)
+                if max_bytes is None
+                else max_bytes,
+            ),
         }
 
     def _placeholder_unprepared(self, kind: str) -> dict[str, Any]:
@@ -411,7 +415,9 @@ class _CappingOpenAIResponseFormatter(
             "text": self._placeholder_text(
                 kind,
                 size,
-                self._max_bytes_for_kind(kind) if max_bytes is None else max_bytes,
+                self._max_bytes_for_kind(kind)
+                if max_bytes is None
+                else max_bytes,
             ),
         }
 
