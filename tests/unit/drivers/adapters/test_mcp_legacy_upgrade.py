@@ -19,6 +19,9 @@ from qwenpaw.app.mcp.schemas import (
     MCPClientUpdateRequest,
 )
 from qwenpaw.config.config import MCPClientConfig
+from qwenpaw.mcp_timeout import (
+    DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+)
 from qwenpaw.drivers.adapters.mcp_card_builder import (
     build_mcp_client_info_payload,
     build_mcp_driver_card,
@@ -38,33 +41,64 @@ def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
     legacy = MCPClientConfig(
         name="slow-server",
         command="python",
-        timeout=5.0,
+        tool_call_timeout=5.0,
     )
-    assert legacy.timeout == 5.0
+    assert legacy.tool_call_timeout == 5.0
 
     migrated, _ = legacy_mcp_client_to_driver("slow-server", legacy)
-    assert migrated.endpoint["timeout"] == 5.0
+    assert migrated.endpoint["tool_call_timeout"] == 5.0
+
+    legacy_alias = MCPClientConfig(
+        name="legacy-slow-server",
+        command="python",
+        timeout=6.0,
+    )
+    assert legacy_alias.tool_call_timeout == 6.0
+    assert (
+        MCPClientConfig(
+            name="default-server",
+            command="python",
+        ).tool_call_timeout
+        == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+    )
+
+    created_alias = MCPClientCreateRequest(
+        name="slow-server",
+        command="python",
+        timeout=6.5,
+    )
+    assert created_alias.tool_call_timeout == 6.5
 
     created = MCPClientCreateRequest(
         name="slow-server",
         command="python",
-        timeout=7.0,
+        tool_call_timeout=7.0,
     )
     card = build_mcp_driver_card(
         "slow-server",
         created,
         "mcp/slow-server",
     )
-    assert card.endpoint["timeout"] == 7.0
-    assert build_mcp_client_info_payload(card, None)["timeout"] == 7.0
+    assert card.endpoint["tool_call_timeout"] == 7.0
+    assert (
+        build_mcp_client_info_payload(card, None)["tool_call_timeout"] == 7.0
+    )
 
     updated = build_mcp_driver_card(
         "slow-server",
-        MCPClientUpdateRequest(timeout=9.0),
+        MCPClientUpdateRequest(tool_call_timeout=9.0),
         "mcp/slow-server",
         existing=card,
     )
-    assert updated.endpoint["timeout"] == 9.0
+    assert updated.endpoint["tool_call_timeout"] == 9.0
+
+    updated_alias = build_mcp_driver_card(
+        "slow-server",
+        MCPClientUpdateRequest(timeout=10.0),
+        "mcp/slow-server",
+        existing=updated,
+    )
+    assert updated_alias.endpoint["tool_call_timeout"] == 10.0
 
 
 def _write_card(

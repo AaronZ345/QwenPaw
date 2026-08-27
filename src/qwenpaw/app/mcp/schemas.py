@@ -6,7 +6,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from ...mcp_timeout import DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
 
 
 class MCPClientOAuthStatus(BaseModel):
@@ -67,10 +69,13 @@ class MCPClientInfo(BaseModel):
         "raises the read (sse_read_timeout) budget to at least this value. "
         "None keeps the client default (30s / 300s).",
     )
-    timeout: float = Field(
-        default=120.0,
+    tool_call_timeout: float = Field(
+        default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         gt=0,
-        description="Maximum duration of one MCP tool call in seconds",
+        description=(
+            "Maximum duration of one MCP tool call in seconds. This does not "
+            "change HTTP transport timeouts."
+        ),
     )
     tools: Optional[List[str]] = Field(
         default=None,
@@ -131,16 +136,28 @@ class MCPClientCreateRequest(BaseModel):
         "raises the read (sse_read_timeout) budget to at least this value. "
         "None keeps the client default (30s / 300s).",
     )
-    timeout: float = Field(
-        default=120.0,
+    tool_call_timeout: float = Field(
+        default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         gt=0,
-        description="Maximum duration of one MCP tool call in seconds",
+        description=(
+            "Maximum duration of one MCP tool call in seconds. This does not "
+            "change HTTP transport timeouts."
+        ),
     )
     tools: Optional[List[str]] = Field(
         default=None,
         description="Tool whitelist. Only listed tools will be loaded. "
         "None means load all tools.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_timeout(cls, data):
+        if isinstance(data, dict) and "timeout" in data:
+            payload = dict(data)
+            payload.setdefault("tool_call_timeout", payload["timeout"])
+            return payload
+        return data
 
 
 class MCPClientUpdateRequest(BaseModel):
@@ -188,16 +205,28 @@ class MCPClientUpdateRequest(BaseModel):
         "None keeps the client default (30s / 300s). "
         "Once set, an update cannot clear it back to None (client default).",
     )
-    timeout: Optional[float] = Field(
+    tool_call_timeout: Optional[float] = Field(
         None,
         gt=0,
-        description="Maximum duration of one MCP tool call in seconds",
+        description=(
+            "Maximum duration of one MCP tool call in seconds. This does not "
+            "change HTTP transport timeouts."
+        ),
     )
     tools: Optional[List[str]] = Field(
         None,
         description="Tool whitelist (omit to leave unchanged). "
         "Set to null to remove the whitelist.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_timeout(cls, data):
+        if isinstance(data, dict) and "timeout" in data:
+            payload = dict(data)
+            payload.setdefault("tool_call_timeout", payload["timeout"])
+            return payload
+        return data
 
 
 class MCPAccessRule(BaseModel):
