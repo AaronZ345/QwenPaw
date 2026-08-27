@@ -8,7 +8,10 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from ...mcp_timeout import DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+from ...mcp_timeout import (
+    DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+)
 
 
 class MCPClientOAuthStatus(BaseModel):
@@ -72,9 +75,12 @@ class MCPClientInfo(BaseModel):
     tool_call_timeout: float = Field(
         default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         gt=0,
+        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+        allow_inf_nan=False,
         description=(
             "Maximum duration of one MCP tool call in seconds. This does not "
-            "change HTTP transport timeouts."
+            "change HTTP connect/write/pool transport timeouts or SSE read "
+            "timeouts."
         ),
     )
     tools: Optional[List[str]] = Field(
@@ -139,9 +145,12 @@ class MCPClientCreateRequest(BaseModel):
     tool_call_timeout: float = Field(
         default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         gt=0,
+        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+        allow_inf_nan=False,
         description=(
             "Maximum duration of one MCP tool call in seconds. This does not "
-            "change HTTP transport timeouts."
+            "change HTTP connect/write/pool transport timeouts or SSE read "
+            "timeouts."
         ),
     )
     tools: Optional[List[str]] = Field(
@@ -208,9 +217,12 @@ class MCPClientUpdateRequest(BaseModel):
     tool_call_timeout: Optional[float] = Field(
         None,
         gt=0,
+        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+        allow_inf_nan=False,
         description=(
             "Maximum duration of one MCP tool call in seconds. This does not "
-            "change HTTP transport timeouts."
+            "change HTTP connect/write/pool transport timeouts or SSE read "
+            "timeouts."
         ),
     )
     tools: Optional[List[str]] = Field(

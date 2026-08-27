@@ -13,6 +13,7 @@ never repairs them.  ``upgrade_legacy_mcp_credentials`` re-runs the same
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from qwenpaw.app.mcp.schemas import (
     MCPClientCreateRequest,
@@ -21,6 +22,8 @@ from qwenpaw.app.mcp.schemas import (
 from qwenpaw.config.config import MCPClientConfig
 from qwenpaw.mcp_timeout import (
     DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    parse_mcp_tool_call_timeout,
 )
 from qwenpaw.drivers.adapters.mcp_card_builder import (
     build_mcp_client_info_payload,
@@ -99,6 +102,51 @@ def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
         existing=updated,
     )
     assert updated_alias.endpoint["tool_call_timeout"] == 10.0
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("nan"), 0, -1])
+def test_mcp_tool_call_timeout_rejects_non_finite_or_non_positive_values(
+    value,
+) -> None:
+    with pytest.raises(ValueError):
+        parse_mcp_tool_call_timeout(value)
+
+    with pytest.raises(ValidationError):
+        MCPClientConfig(name="bad-server", command="python", timeout=value)
+
+    with pytest.raises(ValidationError):
+        MCPClientCreateRequest(
+            name="bad-server",
+            command="python",
+            timeout=value,
+        )
+
+    with pytest.raises(ValidationError):
+        MCPClientUpdateRequest(timeout=value)
+
+
+def test_mcp_tool_call_timeout_rejects_values_above_maximum() -> None:
+    too_large = MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS + 1
+
+    with pytest.raises(ValueError):
+        parse_mcp_tool_call_timeout(too_large)
+
+    with pytest.raises(ValidationError):
+        MCPClientConfig(
+            name="bad-server",
+            command="python",
+            tool_call_timeout=too_large,
+        )
+
+    with pytest.raises(ValidationError):
+        MCPClientCreateRequest(
+            name="bad-server",
+            command="python",
+            tool_call_timeout=too_large,
+        )
+
+    with pytest.raises(ValidationError):
+        MCPClientUpdateRequest(tool_call_timeout=too_large)
 
 
 def _write_card(

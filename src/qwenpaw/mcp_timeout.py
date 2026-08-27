@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 60 * 5
+MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 24 * 60 * 60
 MCP_TOOL_CALL_TIMEOUT_FIELD = "tool_call_timeout"
 LEGACY_MCP_TOOL_CALL_TIMEOUT_FIELD = "timeout"
 
@@ -41,6 +43,11 @@ def parse_mcp_tool_call_timeout(value: Any = _MISSING) -> float:
         timeout = float(raw_value)
     except (TypeError, ValueError) as exc:
         raise ValueError("must be a positive number") from exc
-    if timeout <= 0:
+    if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("must be a positive number")
+    if timeout > MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS:
+        raise ValueError(
+            "must be less than or equal to "
+            f"{MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS:g}",
+        )
     return timeout
