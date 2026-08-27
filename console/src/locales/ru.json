@@ -2625,6 +2625,8 @@
     "chatHistoryTooltip": "История чатов",
     "wideModeTooltip": "Широкий режим",
     "normalModeTooltip": "Обычный режим",
+    "lockScrollTooltip": "Заблокировать автопрокрутку",
+    "followScrollTooltip": "Следовать за новым сообщением",
     "allChats": "Все чаты",
     "createNewChat": "Создать новый чат",
     "pinDrawer": "Закрепить",

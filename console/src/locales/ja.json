@@ -2610,6 +2610,8 @@
     "chatHistoryTooltip": "チャット履歴",
     "wideModeTooltip": "ワイドモード",
     "normalModeTooltip": "標準モード",
+    "lockScrollTooltip": "自動スクロールをロック",
+    "followScrollTooltip": "最新メッセージに追従",
     "allChats": "すべてのチャット",
     "createNewChat": "新しいチャットを作成",
     "pinDrawer": "固定",

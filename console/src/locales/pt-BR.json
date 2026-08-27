@@ -2854,6 +2854,8 @@
     "chatHistoryTooltip": "Chat history",
     "wideModeTooltip": "Modo amplo",
     "normalModeTooltip": "Modo normal",
+    "lockScrollTooltip": "Bloquear rolagem automática",
+    "followScrollTooltip": "Seguir mensagem mais recente",
     "allChats": "Todos Chats",
     "createNewChat": "Criar Novo Chat",
     "pinDrawer": "Fixar",
