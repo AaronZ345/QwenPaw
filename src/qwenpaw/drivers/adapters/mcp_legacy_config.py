@@ -11,15 +11,7 @@ from typing import Any
 
 import yaml
 
-from .env_ref import env_ref
-from .mcp_console import (
-    mcp_credential_ref,
-    mcp_oauth_credential_ref,
-    normalize_secret_key,
-    plan_env_ref_bindings,
-    source_binding_from_split,
-    split_mcp_binding,
-)
+from ...mcp_timeout import get_mcp_tool_call_timeout
 from ..constants import (
     CAPABILITY_KIND_TOOL,
     CREDENTIAL_ALIAS_OAUTH,
@@ -38,9 +30,17 @@ from ..contracts import (
     PolicyTarget,
 )
 from ..credentials.types import CredentialRecord
-from ...mcp_timeout import get_mcp_tool_call_timeout
 from ..manager import DriverManager
 from ..storage import load_card
+from .env_ref import env_ref
+from .mcp_console import (
+    mcp_credential_ref,
+    mcp_oauth_credential_ref,
+    normalize_secret_key,
+    plan_env_ref_bindings,
+    source_binding_from_split,
+    split_mcp_binding,
+)
 
 # Schema version of the legacy-MCP -> DriverCard migration, persisted on
 # ``MCPConfig.migration_version`` (agent.json) as a one-shot watermark that
@@ -261,9 +261,12 @@ def legacy_mcp_client_to_driver(
             "headers": header_binding,
         }
 
-    endpoint["tool_call_timeout"] = get_mcp_tool_call_timeout(
-        config.model_dump(),
-    )
+    timeout_config: dict[str, Any] = {}
+    if hasattr(config, "tool_call_timeout"):
+        timeout_config["tool_call_timeout"] = config.tool_call_timeout
+    elif hasattr(config, "timeout"):
+        timeout_config["timeout"] = config.timeout
+    endpoint["tool_call_timeout"] = get_mcp_tool_call_timeout(timeout_config)
     credential = _build_legacy_credential(
         client_key,
         oauth,
