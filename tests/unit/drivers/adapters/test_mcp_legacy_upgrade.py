@@ -10,7 +10,9 @@ never repairs them.  ``upgrade_legacy_mcp_credentials`` re-runs the same
 * leave real secrets (no ``${WORD}``) byte-for-byte untouched,
 * be idempotent (skip credentials already resolved via ``env:``).
 """
+import inspect
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -51,12 +53,6 @@ def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
     migrated, _ = legacy_mcp_client_to_driver("slow-server", legacy)
     assert migrated.endpoint["tool_call_timeout"] == 5.0
 
-    legacy_alias = MCPClientConfig(
-        name="legacy-slow-server",
-        command="python",
-        timeout=6.0,
-    )
-    assert legacy_alias.tool_call_timeout == 6.0
     assert (
         MCPClientConfig(
             name="default-server",
@@ -64,13 +60,6 @@ def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
         ).tool_call_timeout
         == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
     )
-
-    created_alias = MCPClientCreateRequest(
-        name="slow-server",
-        command="python",
-        timeout=6.5,
-    )
-    assert created_alias.tool_call_timeout == 6.5
 
     created = MCPClientCreateRequest(
         name="slow-server",
@@ -95,13 +84,46 @@ def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
     )
     assert updated.endpoint["tool_call_timeout"] == 9.0
 
-    updated_alias = build_mcp_driver_card(
-        "slow-server",
-        MCPClientUpdateRequest(timeout=10.0),
-        "mcp/slow-server",
-        existing=updated,
+
+def test_legacy_timeout_name_is_not_coerced_to_tool_call_timeout() -> None:
+    assert (
+        MCPClientConfig(
+            name="http-server",
+            transport="streamable_http",
+            url="https://mcp.example.com",
+            timeout=6.0,
+        ).tool_call_timeout
+        == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
     )
-    assert updated_alias.endpoint["tool_call_timeout"] == 10.0
+    assert (
+        MCPClientCreateRequest(
+            name="http-server",
+            transport="streamable_http",
+            url="https://mcp.example.com",
+            timeout=6.5,
+        ).tool_call_timeout
+        == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+    )
+    assert MCPClientUpdateRequest(timeout=10.0).tool_call_timeout is None
+
+
+def test_legacy_migration_treats_none_timeout_as_unset() -> None:
+    config = SimpleNamespace(
+        transport="streamable_http",
+        url="https://mcp.example.com",
+        headers={},
+        oauth=None,
+        tools=None,
+        tool_call_timeout=None,
+        timeout=6.0,
+    )
+
+    migrated, _ = legacy_mcp_client_to_driver("legacy-http", config)
+
+    assert (
+        migrated.endpoint["tool_call_timeout"]
+        == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+    )
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("nan"), 0, -1])
@@ -112,17 +134,28 @@ def test_mcp_tool_call_timeout_rejects_non_finite_or_non_positive_values(
         parse_mcp_tool_call_timeout(value)
 
     with pytest.raises(ValidationError):
-        MCPClientConfig(name="bad-server", command="python", timeout=value)
+        MCPClientConfig(
+            name="bad-server",
+            command="python",
+            tool_call_timeout=value,
+        )
 
     with pytest.raises(ValidationError):
         MCPClientCreateRequest(
             name="bad-server",
             command="python",
-            timeout=value,
+            tool_call_timeout=value,
         )
 
     with pytest.raises(ValidationError):
-        MCPClientUpdateRequest(timeout=value)
+        MCPClientUpdateRequest(tool_call_timeout=value)
+
+
+def test_parse_mcp_tool_call_timeout_requires_a_value() -> None:
+    parameter = inspect.signature(parse_mcp_tool_call_timeout).parameters[
+        "value"
+    ]
+    assert parameter.default is inspect.Parameter.empty
 
 
 def test_mcp_tool_call_timeout_rejects_values_above_maximum() -> None:
