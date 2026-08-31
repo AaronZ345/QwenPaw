@@ -745,6 +745,51 @@ async def test_call_tool_maps_sdk_timeout_without_reconnect():
     assert not c._reload_event.is_set()
 
 
+async def test_call_tool_maps_http_timeout_without_reconnect():
+    c = HttpStatefulClient(
+        "slow-client",
+        "streamable_http",
+        "http://x",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+
+    class FakeSession:
+        async def call_tool(
+            self,
+            name: str,
+            args: dict,
+            read_timeout_seconds=None,
+        ) -> None:
+            del name, args, read_timeout_seconds
+            raise httpx.ReadTimeout("read timed out")
+
+    c.session = FakeSession()  # type: ignore[assignment]
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'slow-client' timed out "
+        "after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+    assert c.is_connected is True
+    assert not c._reload_event.is_set()
+
+
+def test_http_client_read_timeout_covers_tool_call_timeout():
+    c = HttpStatefulClient(
+        "slow-client",
+        "streamable_http",
+        "http://x",
+        sse_read_timeout=30,
+        tool_call_timeout=600,
+    )
+
+    assert c.sse_read_timeout == 600
+    assert c.read_timeout_seconds == 600
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [
@@ -779,6 +824,7 @@ async def test_driver_handler_passes_tool_call_timeout(
 
     monkeypatch.setattr(mcp_handler, "StdIOStatefulClient", FakeClient)
     monkeypatch.setattr(mcp_handler, "HttpStatefulClient", FakeClient)
+    monkeypatch.setattr(mcp_handler, "HttpAutoClient", FakeClient)
 
     handler = object.__new__(MCPDriverHandler)
     handler._card = DriverCard(

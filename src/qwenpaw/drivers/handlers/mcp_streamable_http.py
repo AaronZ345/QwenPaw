@@ -22,6 +22,7 @@ import httpx
 from mcp import types as mcp_types
 
 from ...__version__ import __version__ as _QWENPAW_VERSION
+from ...mcp_timeout import DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -460,6 +461,7 @@ class _HttpClientBase:
         headers: dict[str, str] | None = None,
         timeout: float = 30,
         sse_read_timeout: float = 60 * 5,
+        tool_call_timeout: float = DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         **client_kwargs: Any,
     ) -> None:
         for label, value in (
@@ -481,7 +483,11 @@ class _HttpClientBase:
         self.url = url
         self.headers = headers
         self.timeout = timeout
-        self.sse_read_timeout = sse_read_timeout
+        self.tool_call_timeout = tool_call_timeout
+        self.sse_read_timeout = max(
+            _timeout_seconds(sse_read_timeout),
+            float(tool_call_timeout),
+        )
         self.client_kwargs = dict(client_kwargs)
         self.is_stateful = False
         self.is_connected = False
@@ -641,8 +647,6 @@ class HttpStatelessClient(_HttpClientBase):
     async def call_tool(self, name: str, arguments: dict | None = None):
         """Call a tool, mirroring ``x-mcp-header`` params into HTTP headers."""
         self._validate_connection()
-        if not self._tools_listed:
-            await self.list_tools()
 
         async def _call() -> Any:
             return await self._rpc(
@@ -656,13 +660,41 @@ class HttpStatelessClient(_HttpClientBase):
                 or None,
             )
 
+        async def _call_sequence() -> Any:
+            if not self._tools_listed:
+                await self.list_tools()
+            try:
+                return await _call()
+            except _JsonRpcError as exc:
+                if exc.code != _JSONRPC_HEADER_MISMATCH:
+                    raise
+                await self.list_tools()
+                return await _call()
+
+        task = asyncio.create_task(_call_sequence())
         try:
-            result = await _call()
-        except _JsonRpcError as exc:
-            if exc.code != _JSONRPC_HEADER_MISMATCH:
-                raise
-            await self.list_tools()
-            result = await _call()
+            done, _ = await asyncio.wait(
+                (task,),
+                timeout=self.tool_call_timeout,
+            )
+        except BaseException:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise
+        if not done:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            raise TimeoutError(
+                f"MCP tool call '{name}' on client '{self.name}' timed "
+                f"out after {self.tool_call_timeout:g}s",
+            )
+        try:
+            result = task.result()
+        except httpx.TimeoutException as exc:
+            raise TimeoutError(
+                f"MCP tool call '{name}' on client '{self.name}' timed "
+                f"out after {self.tool_call_timeout:g}s",
+            ) from exc
         normalized = _normalize_call_tool_result(result)
         if isinstance(normalized, dict):
             result_type = normalized.get("resultType")
@@ -893,6 +925,7 @@ class HttpAutoClient(_HttpClientBase):
             "headers": _headers_without_session_id(self.headers) or None,
             "timeout": self.timeout,
             "sse_read_timeout": self.sse_read_timeout,
+            "tool_call_timeout": self.tool_call_timeout,
             **kw,
         }
         deadline = time.monotonic() + float(timeout)

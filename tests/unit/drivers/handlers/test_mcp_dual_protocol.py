@@ -590,6 +590,103 @@ async def test_call_tool_header_mismatch_retry(second_ok):
         await c.close()
 
 
+async def test_modern_call_tool_timeout_includes_initial_tool_listing(
+    monkeypatch,
+):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+
+    async def slow_list_tools():
+        await asyncio.sleep(0.05)
+        c._tools_listed = True
+        return []
+
+    async def successful_call(*_args, **_kwargs):
+        return {"content": [], "resultType": "complete"}
+
+    monkeypatch.setattr(c, "list_tools", slow_list_tools)
+    monkeypatch.setattr(c, "_rpc", successful_call)
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'modern' timed out after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+
+async def test_modern_call_tool_timeout_includes_header_refresh(monkeypatch):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+
+    async def header_mismatch(*_args, **_kwargs):
+        raise _JsonRpcError(
+            _JSONRPC_HEADER_MISMATCH,
+            "refresh headers",
+        )
+
+    async def slow_list_tools():
+        await asyncio.sleep(0.05)
+        return []
+
+    monkeypatch.setattr(c, "_rpc", header_mismatch)
+    monkeypatch.setattr(c, "list_tools", slow_list_tools)
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'modern' timed out after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+
+async def test_modern_call_tool_maps_http_timeout(monkeypatch):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+
+    async def read_timeout(*_args, **_kwargs):
+        raise httpx.ReadTimeout("read timed out")
+
+    monkeypatch.setattr(c, "_rpc", read_timeout)
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'modern' timed out after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+
+def test_modern_http_read_timeout_covers_tool_call_timeout():
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        sse_read_timeout=30,
+        tool_call_timeout=600,
+    )
+
+    assert c.sse_read_timeout == 600
+    assert c.tool_call_timeout == 600
+
+
 async def test_list_tools_max_pages_exceeded():
     n = {"v": 0}
 

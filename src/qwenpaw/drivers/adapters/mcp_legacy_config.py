@@ -261,11 +261,12 @@ def legacy_mcp_client_to_driver(
             "headers": header_binding,
         }
 
-    timeout_config: dict[str, Any] = {}
-    if hasattr(config, "tool_call_timeout"):
-        timeout_config["tool_call_timeout"] = config.tool_call_timeout
-    elif hasattr(config, "timeout"):
-        timeout_config["timeout"] = config.timeout
+    raw_tool_call_timeout = getattr(config, "tool_call_timeout", None)
+    timeout_config = (
+        {"tool_call_timeout": raw_tool_call_timeout}
+        if raw_tool_call_timeout is not None
+        else {}
+    )
     endpoint["tool_call_timeout"] = get_mcp_tool_call_timeout(timeout_config)
     credential = _build_legacy_credential(
         client_key,

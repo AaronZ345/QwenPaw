@@ -156,6 +156,8 @@ async def _gather_uncancelled(*tasks: Any) -> None:
 
 
 def _is_mcp_request_timeout(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.TimeoutException):
+        return True
     if not isinstance(exc, McpError):
         return False
     error = getattr(exc, "error", None)
@@ -576,11 +578,12 @@ class _MCPClientMixin:
             name: Tool name
             arguments: Tool arguments (optional)
 
-Returns:
+        Returns:
             Tool call result
 
         Raises:
             RuntimeError: If not connected or session was replaced
+            TimeoutError: If the tool call exceeds ``tool_call_timeout``
         """
         self._validate_connection()
         session, closed = self.session, self._session_closed
@@ -1045,8 +1048,16 @@ class HttpStatefulClient(_MCPClientMixin):
         self.url = url
         self.headers = headers
         self.timeout = timeout
-        self.sse_read_timeout = sse_read_timeout
-        self.read_timeout_seconds = sse_read_timeout
+        sse_read_timeout_seconds = (
+            sse_read_timeout.total_seconds()
+            if isinstance(sse_read_timeout, timedelta)
+            else float(sse_read_timeout)
+        )
+        self.sse_read_timeout = max(
+            sse_read_timeout_seconds,
+            float(tool_call_timeout),
+        )
+        self.read_timeout_seconds = self.sse_read_timeout
         self.tool_call_timeout = tool_call_timeout
         self.client_kwargs = client_kwargs
 

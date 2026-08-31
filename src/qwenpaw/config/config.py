@@ -38,6 +38,7 @@ from qwenpaw.exceptions import (
 from qwenpaw.mcp_timeout import (
     DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
     MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
 )
 
 from .timezone import detect_system_timezone
@@ -2376,11 +2377,7 @@ class MCPClientConfig(BaseModel):
         gt=0,
         le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
         allow_inf_nan=False,
-        description=(
-            "Maximum duration of one MCP tool call in seconds. This does not "
-            "change HTTP connect/write/pool transport timeouts or SSE read "
-            "timeouts."
-        ),
+        description=MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
     )
     tools: Optional[List[str]] = Field(
         default=None,
@@ -2406,9 +2403,6 @@ class MCPClientConfig(BaseModel):
 
         if "type" in payload and "transport" not in payload:
             payload["transport"] = payload["type"]
-
-        if "timeout" in payload and "tool_call_timeout" not in payload:
-            payload["tool_call_timeout"] = payload["timeout"]
 
         if (
             "transport" not in payload
