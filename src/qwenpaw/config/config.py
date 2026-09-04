@@ -37,8 +37,7 @@ from qwenpaw.exceptions import (
 )
 from qwenpaw.mcp_timeout import (
     DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-    MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-    MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
+    mcp_tool_call_timeout_field,
 )
 
 from .timezone import detect_system_timezone
@@ -2565,12 +2564,8 @@ class MCPClientConfig(BaseModel):
         "raises the read (sse_read_timeout) budget to at least this value. "
         "None keeps the client default (30s / 300s).",
     )
-    tool_call_timeout: float = Field(
-        default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        gt=0,
-        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        allow_inf_nan=False,
-        description=MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
+    tool_call_timeout: float = mcp_tool_call_timeout_field(
+        DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
     )
     tools: Optional[List[str]] = Field(
         default=None,
@@ -2619,6 +2614,15 @@ class MCPClientConfig(BaseModel):
                 normalized,
                 normalized,
             )
+
+        if payload.get("tool_call_timeout") is None:
+            if (
+                payload.get("transport", "stdio") == "stdio"
+                and "timeout" in payload
+            ):
+                payload["tool_call_timeout"] = payload["timeout"]
+            else:
+                payload.pop("tool_call_timeout", None)
 
         return payload
 
