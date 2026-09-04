@@ -6,17 +6,35 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import httpx
 from pydantic import Field
 from pydantic.fields import FieldInfo
 
 DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 60 * 5
 MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 24 * 60 * 60
+MCP_REQUEST_TIMEOUT_CODE = 408
 MCP_TOOL_CALL_TIMEOUT_FIELD = "tool_call_timeout"
 MCP_TOOL_CALL_TIMEOUT_DESCRIPTION = (
     "Maximum duration of one MCP tools/call request in seconds. For HTTP "
     "transports, the SSE read budget is raised to at least this value; HTTP "
     "connect, write, and pool timeouts are unchanged."
 )
+
+
+def is_mcp_request_timeout(exc: BaseException) -> bool:
+    """Return whether an exception tree represents an MCP request timeout."""
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    error = getattr(exc, "error", None)
+    if (
+        getattr(exc, "code", None) == MCP_REQUEST_TIMEOUT_CODE
+        or getattr(error, "code", None) == MCP_REQUEST_TIMEOUT_CODE
+    ):
+        return True
+    sub_excs = getattr(exc, "exceptions", None)
+    return bool(sub_excs) and any(
+        is_mcp_request_timeout(item) for item in sub_excs
+    )
 
 
 def mcp_tool_call_timeout_field(default: Any) -> FieldInfo:
