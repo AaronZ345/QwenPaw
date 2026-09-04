@@ -158,10 +158,13 @@ async def _gather_uncancelled(*tasks: Any) -> None:
 def _is_mcp_request_timeout(exc: BaseException) -> bool:
     if isinstance(exc, httpx.TimeoutException):
         return True
-    if not isinstance(exc, McpError):
-        return False
-    error = getattr(exc, "error", None)
-    return getattr(error, "code", None) == _MCP_REQUEST_TIMEOUT_CODE
+    if isinstance(exc, McpError):
+        error = getattr(exc, "error", None)
+        return getattr(error, "code", None) == _MCP_REQUEST_TIMEOUT_CODE
+    sub_excs = getattr(exc, "exceptions", None)
+    return bool(sub_excs) and any(
+        _is_mcp_request_timeout(item) for item in sub_excs
+    )
 
 
 class _MCPClientMixin:

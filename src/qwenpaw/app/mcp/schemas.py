@@ -10,8 +10,7 @@ from pydantic import BaseModel, Field
 
 from ...mcp_timeout import (
     DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-    MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-    MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
+    mcp_tool_call_timeout_field,
 )
 
 
@@ -66,12 +65,8 @@ class MCPClientInfo(BaseModel):
         default="",
         description="Working directory for stdio MCP command",
     )
-    tool_call_timeout: float = Field(
-        default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        gt=0,
-        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        allow_inf_nan=False,
-        description=MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
+    tool_call_timeout: float = mcp_tool_call_timeout_field(
+        DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
     )
     tools: Optional[List[str]] = Field(
         default=None,
@@ -125,12 +120,8 @@ class MCPClientCreateRequest(BaseModel):
         default="",
         description="Working directory for stdio MCP command",
     )
-    tool_call_timeout: float = Field(
-        default=DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        gt=0,
-        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        allow_inf_nan=False,
-        description=MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
+    tool_call_timeout: float = mcp_tool_call_timeout_field(
+        DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
     )
     tools: Optional[List[str]] = Field(
         default=None,
@@ -176,13 +167,7 @@ class MCPClientUpdateRequest(BaseModel):
         None,
         description="Working directory for stdio MCP command",
     )
-    tool_call_timeout: Optional[float] = Field(
-        None,
-        gt=0,
-        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
-        allow_inf_nan=False,
-        description=MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
-    )
+    tool_call_timeout: Optional[float] = mcp_tool_call_timeout_field(None)
     tools: Optional[List[str]] = Field(
         None,
         description="Tool whitelist (omit to leave unchanged). "

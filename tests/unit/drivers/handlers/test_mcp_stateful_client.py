@@ -777,6 +777,43 @@ async def test_call_tool_maps_http_timeout_without_reconnect():
     assert not c._reload_event.is_set()
 
 
+async def test_call_tool_maps_grouped_http_timeout_without_reconnect():
+    c = HttpStatefulClient(
+        "slow-client",
+        "streamable_http",
+        "http://x",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+
+    class FakeSession:
+        async def call_tool(
+            self,
+            name: str,
+            args: dict,
+            read_timeout_seconds=None,
+        ) -> None:
+            del name, args, read_timeout_seconds
+            raise ExceptionGroup(
+                "streamable HTTP task group failed",
+                [httpx.ReadTimeout("read timed out")],
+            )
+
+    session = FakeSession()
+    c.session = session  # type: ignore[assignment]
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'slow-client' timed out "
+        "after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+    assert c.session is session
+    assert c.is_connected is True
+    assert not c._reload_event.is_set()
+
+
 def test_http_client_read_timeout_covers_tool_call_timeout():
     c = HttpStatefulClient(
         "slow-client",

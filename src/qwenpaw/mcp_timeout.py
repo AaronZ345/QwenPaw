@@ -6,6 +6,9 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from pydantic import Field
+from pydantic.fields import FieldInfo
+
 DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 60 * 5
 MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 24 * 60 * 60
 MCP_TOOL_CALL_TIMEOUT_FIELD = "tool_call_timeout"
@@ -14,6 +17,17 @@ MCP_TOOL_CALL_TIMEOUT_DESCRIPTION = (
     "transports, the SSE read budget is raised to at least this value; HTTP "
     "connect, write, and pool timeouts are unchanged."
 )
+
+
+def mcp_tool_call_timeout_field(default: Any) -> FieldInfo:
+    """Build the shared Pydantic field for MCP tool-call deadlines."""
+    return Field(
+        default=default,
+        gt=0,
+        le=MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+        allow_inf_nan=False,
+        description=MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
+    )
 
 
 def get_mcp_tool_call_timeout(endpoint: dict[str, Any]) -> float:

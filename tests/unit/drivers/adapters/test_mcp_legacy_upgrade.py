@@ -19,12 +19,14 @@ from pydantic import ValidationError
 
 from qwenpaw.app.mcp.schemas import (
     MCPClientCreateRequest,
+    MCPClientInfo,
     MCPClientUpdateRequest,
 )
 from qwenpaw.config.config import MCPClientConfig
 from qwenpaw.mcp_timeout import (
     DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
     MAX_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    MCP_TOOL_CALL_TIMEOUT_DESCRIPTION,
     parse_mcp_tool_call_timeout,
 )
 from qwenpaw.drivers.adapters.mcp_card_builder import (
@@ -85,6 +87,23 @@ def test_mcp_timeout_roundtrips_through_config_and_driver_card() -> None:
     assert updated.endpoint["tool_call_timeout"] == 9.0
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        MCPClientInfo,
+        MCPClientCreateRequest,
+        MCPClientUpdateRequest,
+        MCPClientConfig,
+    ],
+)
+def test_mcp_timeout_schema_uses_shared_description(model) -> None:
+    timeout_schema = model.model_json_schema()["properties"][
+        "tool_call_timeout"
+    ]
+
+    assert timeout_schema["description"] == MCP_TOOL_CALL_TIMEOUT_DESCRIPTION
+
+
 def test_legacy_timeout_name_is_not_coerced_to_tool_call_timeout() -> None:
     assert (
         MCPClientConfig(
@@ -107,7 +126,41 @@ def test_legacy_timeout_name_is_not_coerced_to_tool_call_timeout() -> None:
     assert MCPClientUpdateRequest(timeout=10.0).tool_call_timeout is None
 
 
-def test_legacy_migration_treats_none_timeout_as_unset() -> None:
+def test_legacy_stdio_config_accepts_timeout_alias() -> None:
+    config = MCPClientConfig(
+        name="stdio-server",
+        command="python",
+        timeout=6.0,
+    )
+
+    assert config.tool_call_timeout == 6.0
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {
+            "name": "stdio-server",
+            "command": "python",
+            "tool_call_timeout": None,
+        },
+        {
+            "name": "http-server",
+            "transport": "streamable_http",
+            "url": "https://mcp.example.com",
+            "tool_call_timeout": None,
+            "timeout": 6.0,
+        },
+    ],
+)
+def test_legacy_config_treats_none_timeout_as_unset(config) -> None:
+    assert (
+        MCPClientConfig(**config).tool_call_timeout
+        == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+    )
+
+
+def test_legacy_http_migration_ignores_transport_timeout() -> None:
     config = SimpleNamespace(
         transport="streamable_http",
         url="https://mcp.example.com",
@@ -124,6 +177,23 @@ def test_legacy_migration_treats_none_timeout_as_unset() -> None:
         migrated.endpoint["tool_call_timeout"]
         == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
     )
+
+
+def test_legacy_stdio_migration_falls_back_from_none_to_timeout() -> None:
+    config = SimpleNamespace(
+        transport="stdio",
+        command="python",
+        args=[],
+        env={},
+        oauth=None,
+        tools=None,
+        tool_call_timeout=None,
+        timeout=6.0,
+    )
+
+    migrated, _ = legacy_mcp_client_to_driver("legacy-stdio", config)
+
+    assert migrated.endpoint["tool_call_timeout"] == 6.0
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("nan"), 0, -1])

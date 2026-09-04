@@ -262,6 +262,8 @@ def legacy_mcp_client_to_driver(
         }
 
     raw_tool_call_timeout = getattr(config, "tool_call_timeout", None)
+    if raw_tool_call_timeout is None and transport == "stdio":
+        raw_tool_call_timeout = getattr(config, "timeout", None)
     timeout_config = (
         {"tool_call_timeout": raw_tool_call_timeout}
         if raw_tool_call_timeout is not None
