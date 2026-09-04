@@ -814,6 +814,41 @@ async def test_call_tool_maps_grouped_http_timeout_without_reconnect():
     assert not c._reload_event.is_set()
 
 
+async def test_call_tool_preserves_mixed_exception_group():
+    c = HttpStatefulClient(
+        "slow-client",
+        "streamable_http",
+        "http://x",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    timeout = httpx.ReadTimeout("read timed out")
+    non_timeout = ValueError("invalid response")
+    group = ExceptionGroup(
+        "streamable HTTP task group failed",
+        [timeout, non_timeout],
+    )
+
+    class FakeSession:
+        async def call_tool(
+            self,
+            name: str,
+            args: dict,
+            read_timeout_seconds=None,
+        ) -> None:
+            del name, args, read_timeout_seconds
+            raise group
+
+    session = FakeSession()
+    c.session = session  # type: ignore[assignment]
+
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await c.call_tool("slow")
+
+    assert exc_info.value is group
+    assert exc_info.value.exceptions == (timeout, non_timeout)
+
+
 def test_http_client_read_timeout_covers_tool_call_timeout():
     c = HttpStatefulClient(
         "slow-client",

@@ -700,6 +700,35 @@ async def test_modern_call_tool_maps_grouped_http_timeout(monkeypatch):
         await c.call_tool("slow")
 
 
+async def test_modern_call_tool_preserves_mixed_exception_group(monkeypatch):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+    timeout = httpx.ReadTimeout("read timed out")
+    non_timeout = ValueError("invalid response")
+    group = ExceptionGroup(
+        "streamable HTTP task group failed",
+        [timeout, non_timeout],
+    )
+
+    async def mixed_failure(*_args, **_kwargs):
+        raise group
+
+    monkeypatch.setattr(c, "_rpc", mixed_failure)
+
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await c.call_tool("slow")
+
+    assert exc_info.value is group
+    assert exc_info.value.exceptions == (timeout, non_timeout)
+
+
 @pytest.mark.parametrize("grouped", [False, True])
 async def test_modern_call_tool_maps_mcp_408(monkeypatch, grouped):
     c = HttpStatelessClient(

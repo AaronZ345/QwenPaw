@@ -32,7 +32,7 @@ def is_mcp_request_timeout(exc: BaseException) -> bool:
     ):
         return True
     sub_excs = getattr(exc, "exceptions", None)
-    return bool(sub_excs) and any(
+    return bool(sub_excs) and all(
         is_mcp_request_timeout(item) for item in sub_excs
     )
 
