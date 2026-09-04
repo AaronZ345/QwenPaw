@@ -674,6 +674,59 @@ async def test_modern_call_tool_maps_http_timeout(monkeypatch):
         await c.call_tool("slow")
 
 
+async def test_modern_call_tool_maps_grouped_http_timeout(monkeypatch):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+
+    async def grouped_read_timeout(*_args, **_kwargs):
+        raise ExceptionGroup(
+            "streamable HTTP task group failed",
+            [httpx.ReadTimeout("read timed out")],
+        )
+
+    monkeypatch.setattr(c, "_rpc", grouped_read_timeout)
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'modern' timed out after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+
+@pytest.mark.parametrize("grouped", [False, True])
+async def test_modern_call_tool_maps_mcp_408(monkeypatch, grouped):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+
+    async def mcp_timeout(*_args, **_kwargs):
+        exc = _JsonRpcError(408, "request timed out")
+        if grouped:
+            raise ExceptionGroup("streamable HTTP task group failed", [exc])
+        raise exc
+
+    monkeypatch.setattr(c, "_rpc", mcp_timeout)
+
+    with pytest.raises(
+        TimeoutError,
+        match="MCP tool call 'slow' on client 'modern' timed out after 0.01s",
+    ):
+        await c.call_tool("slow")
+
+
 def test_modern_http_read_timeout_covers_tool_call_timeout():
     c = HttpStatelessClient(
         "modern",

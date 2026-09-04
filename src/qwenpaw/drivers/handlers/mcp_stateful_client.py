@@ -31,7 +31,10 @@ from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.exceptions import McpError
 
-from ...mcp_timeout import DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+from ...mcp_timeout import (
+    DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    is_mcp_request_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +66,6 @@ _TRANSPORT_ERRORS: tuple[type[BaseException], ...] = (
 _TRANSPORT_MCP_MESSAGES = frozenset(
     {"session terminated", "connection closed"},
 )
-_MCP_REQUEST_TIMEOUT_CODE = 408
 
 # How long ``list_tools`` waits for an in-flight reconnect before raising.
 # Picked to cover typical HTTP MCP reconnect latency (sub-second to ~1s
@@ -153,18 +155,6 @@ async def _gather_uncancelled(*tasks: Any) -> None:
     g = asyncio.gather(*tasks, return_exceptions=True)
     n = await _wait_task_uncancelled(g, "")
     _restore_cancel(asyncio.current_task(), n)
-
-
-def _is_mcp_request_timeout(exc: BaseException) -> bool:
-    if isinstance(exc, httpx.TimeoutException):
-        return True
-    if isinstance(exc, McpError):
-        error = getattr(exc, "error", None)
-        return getattr(error, "code", None) == _MCP_REQUEST_TIMEOUT_CODE
-    sub_excs = getattr(exc, "exceptions", None)
-    return bool(sub_excs) and any(
-        _is_mcp_request_timeout(item) for item in sub_excs
-    )
 
 
 class _MCPClientMixin:
@@ -611,7 +601,7 @@ class _MCPClientMixin:
                 raise RuntimeError(
                     f"MCP client '{self.name}' request was aborted.",
                 ) from exc
-            if _is_mcp_request_timeout(exc):
+            if is_mcp_request_timeout(exc):
                 raise TimeoutError(
                     f"MCP tool call '{name}' on client '{self.name}' timed "
                     f"out after {self.tool_call_timeout:g}s",

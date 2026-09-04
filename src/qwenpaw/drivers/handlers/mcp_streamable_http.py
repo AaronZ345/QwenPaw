@@ -22,7 +22,10 @@ import httpx
 from mcp import types as mcp_types
 
 from ...__version__ import __version__ as _QWENPAW_VERSION
-from ...mcp_timeout import DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+from ...mcp_timeout import (
+    DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    is_mcp_request_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -690,7 +693,9 @@ class HttpStatelessClient(_HttpClientBase):
             )
         try:
             result = task.result()
-        except httpx.TimeoutException as exc:
+        except Exception as exc:
+            if not is_mcp_request_timeout(exc):
+                raise
             raise TimeoutError(
                 f"MCP tool call '{name}' on client '{self.name}' timed "
                 f"out after {self.tool_call_timeout:g}s",
