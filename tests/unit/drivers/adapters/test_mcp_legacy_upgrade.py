@@ -221,6 +221,29 @@ def test_mcp_tool_call_timeout_rejects_non_finite_or_non_positive_values(
         MCPClientUpdateRequest(tool_call_timeout=value)
 
 
+@pytest.mark.parametrize("value", [True, False])
+def test_mcp_tool_call_timeout_rejects_boolean_values(value) -> None:
+    with pytest.raises(ValueError):
+        parse_mcp_tool_call_timeout(value)
+
+    with pytest.raises(ValidationError):
+        MCPClientConfig(
+            name="bad-server",
+            command="python",
+            tool_call_timeout=value,
+        )
+
+    with pytest.raises(ValidationError):
+        MCPClientCreateRequest(
+            name="bad-server",
+            command="python",
+            tool_call_timeout=value,
+        )
+
+    with pytest.raises(ValidationError):
+        MCPClientUpdateRequest(tool_call_timeout=value)
+
+
 def test_parse_mcp_tool_call_timeout_requires_a_value() -> None:
     parameter = inspect.signature(parse_mcp_tool_call_timeout).parameters[
         "value"
