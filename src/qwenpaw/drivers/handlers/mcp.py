@@ -270,7 +270,7 @@ def validate_mcp_endpoint(card: DriverCard) -> None:
         get_mcp_tool_call_timeout(endpoint)
     except ValueError as exc:
         raise DriverCardError(
-            f"DriverCard {card.name} endpoint.tool_call_timeout " f"{exc}",
+            f"DriverCard {card.name} endpoint.tool_call_timeout {exc}",
         ) from exc
 
     transport = str(endpoint.get("transport") or "stdio")

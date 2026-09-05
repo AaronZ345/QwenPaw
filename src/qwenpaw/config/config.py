@@ -37,6 +37,7 @@ from qwenpaw.exceptions import (
 )
 from qwenpaw.mcp_timeout import (
     DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
+    MCPToolCallTimeout,
     mcp_tool_call_timeout_field,
 )
 
@@ -2371,7 +2372,7 @@ class MCPClientConfig(BaseModel):
     args: List[str] = Field(default_factory=list)
     env: Dict[str, str] = Field(default_factory=dict)
     cwd: str = ""
-    tool_call_timeout: float = mcp_tool_call_timeout_field(
+    tool_call_timeout: MCPToolCallTimeout = mcp_tool_call_timeout_field(
         DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS,
     )
     tools: Optional[List[str]] = Field(

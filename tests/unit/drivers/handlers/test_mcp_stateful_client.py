@@ -777,6 +777,81 @@ async def test_call_tool_maps_http_timeout_without_reconnect():
     assert not c._reload_event.is_set()
 
 
+@pytest.mark.parametrize(
+    "timeout_type",
+    [httpx.ConnectTimeout, httpx.WriteTimeout, httpx.PoolTimeout],
+)
+async def test_call_tool_reconnects_for_non_read_http_timeout(timeout_type):
+    c = HttpStatefulClient(
+        "slow-client",
+        "streamable_http",
+        "http://x",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    error = timeout_type(
+        "transport timed out",
+        request=httpx.Request("POST", "http://x"),
+    )
+
+    class FakeSession:
+        async def call_tool(
+            self,
+            name: str,
+            args: dict,
+            read_timeout_seconds=None,
+        ) -> None:
+            del name, args, read_timeout_seconds
+            raise error
+
+    session = FakeSession()
+    c.session = session  # type: ignore[assignment]
+
+    with pytest.raises(timeout_type) as exc_info:
+        await c.call_tool("slow")
+
+    assert exc_info.value is error
+    assert c.session is None
+    assert c.is_connected is False
+    assert c._reload_event.is_set()
+
+
+async def test_call_tool_does_not_treat_arbitrary_code_408_as_mcp_timeout():
+    c = HttpStatefulClient(
+        "slow-client",
+        "streamable_http",
+        "http://x",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+
+    class FakeCodeError(Exception):
+        code = 408
+
+    error = FakeCodeError("not an MCP timeout")
+
+    class FakeSession:
+        async def call_tool(
+            self,
+            name: str,
+            args: dict,
+            read_timeout_seconds=None,
+        ) -> None:
+            del name, args, read_timeout_seconds
+            raise error
+
+    session = FakeSession()
+    c.session = session  # type: ignore[assignment]
+
+    with pytest.raises(FakeCodeError) as exc_info:
+        await c.call_tool("slow")
+
+    assert exc_info.value is error
+    assert c.session is session
+    assert c.is_connected is True
+    assert not c._reload_event.is_set()
+
+
 async def test_call_tool_maps_grouped_http_timeout_without_reconnect():
     c = HttpStatefulClient(
         "slow-client",
@@ -859,7 +934,7 @@ def test_http_client_read_timeout_covers_tool_call_timeout():
     )
 
     assert c.sse_read_timeout == 600
-    assert c.read_timeout_seconds == 600
+    assert not hasattr(c, "read_timeout_seconds")
 
 
 @pytest.mark.parametrize(

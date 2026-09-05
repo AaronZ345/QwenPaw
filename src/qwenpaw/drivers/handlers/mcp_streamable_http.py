@@ -528,20 +528,44 @@ class HttpStatelessClient(_HttpClientBase):
         self._tool_param_headers: dict[str, list[_HeaderBinding]] = {}
         self._tools_listed = False
 
+    def _new_http_client(self) -> httpx.AsyncClient:
+        timeout = _timeout_seconds(self.timeout)
+        read_timeout = _timeout_seconds(self.sse_read_timeout)
+        return _AsyncClient(
+            headers=_headers_without_session_id(self.headers),
+            timeout=httpx.Timeout(
+                connect=timeout,
+                read=read_timeout,
+                write=timeout,
+                pool=timeout,
+            ),
+            follow_redirects=self._follow_redirects,
+            **self.client_kwargs,
+        )
+
+    async def _reset_http_client_after_deadline(self) -> None:
+        """Replace the connection pool cancelled by a local call deadline."""
+        old_http = self._http
+        if not isinstance(old_http, httpx.AsyncClient):
+            return
+        self.is_connected = False
+        self._http = None
+        try:
+            await old_http.aclose()
+        except Exception as exc:
+            logger.warning(
+                "Error closing timed-out MCP client %r: %s",
+                self.name,
+                exc,
+            )
+        self._http = self._new_http_client()
+        self.is_connected = True
+
     async def connect(self, timeout: float = 30.0) -> None:
         """Connect and negotiate the modern protocol version."""
         if self.is_connected or self._http is not None:
             raise _already_connected(self.name)
-        t = _timeout_seconds(self.timeout)
-        r = _timeout_seconds(self.sse_read_timeout)
-        # Drop leftover session ids without mutating caller-owned headers.
-        headers = _headers_without_session_id(self.headers)
-        self._http = _AsyncClient(
-            headers=headers,
-            timeout=httpx.Timeout(connect=t, read=r, write=t, pool=t),
-            follow_redirects=self._follow_redirects,
-            **self.client_kwargs,
-        )
+        self._http = self._new_http_client()
         try:
             await asyncio.wait_for(self._negotiate(), timeout=timeout)
         except BaseException:
@@ -687,6 +711,7 @@ class HttpStatelessClient(_HttpClientBase):
         if not done:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+            await self._reset_http_client_after_deadline()
             raise TimeoutError(
                 f"MCP tool call '{name}' on client '{self.name}' timed "
                 f"out after {self.tool_call_timeout:g}s",
@@ -694,7 +719,10 @@ class HttpStatelessClient(_HttpClientBase):
         try:
             result = task.result()
         except Exception as exc:
-            if not is_mcp_request_timeout(exc):
+            if not is_mcp_request_timeout(
+                exc,
+                json_rpc_error_type=_JsonRpcError,
+            ):
                 raise
             raise TimeoutError(
                 f"MCP tool call '{name}' on client '{self.name}' timed "

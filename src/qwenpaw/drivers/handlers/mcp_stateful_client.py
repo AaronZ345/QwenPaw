@@ -1050,7 +1050,6 @@ class HttpStatefulClient(_MCPClientMixin):
             sse_read_timeout_seconds,
             float(tool_call_timeout),
         )
-        self.read_timeout_seconds = self.sse_read_timeout
         self.tool_call_timeout = tool_call_timeout
         self.client_kwargs = client_kwargs
 

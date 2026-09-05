@@ -674,6 +674,97 @@ async def test_modern_call_tool_maps_http_timeout(monkeypatch):
         await c.call_tool("slow")
 
 
+@pytest.mark.parametrize(
+    "timeout_type",
+    [httpx.ConnectTimeout, httpx.WriteTimeout, httpx.PoolTimeout],
+)
+async def test_modern_call_tool_preserves_non_read_http_timeout(
+    monkeypatch,
+    timeout_type,
+):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+    error = timeout_type(
+        "transport timed out",
+        request=httpx.Request("POST", "http://mcp.test/mcp"),
+    )
+
+    async def transport_timeout(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(c, "_rpc", transport_timeout)
+
+    with pytest.raises(timeout_type) as exc_info:
+        await c.call_tool("slow")
+
+    assert exc_info.value is error
+
+
+async def test_modern_call_tool_does_not_map_arbitrary_code_408(monkeypatch):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=0.01,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+
+    class FakeCodeError(Exception):
+        code = 408
+
+    error = FakeCodeError("not an MCP timeout")
+
+    async def fake_code_error(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(c, "_rpc", fake_code_error)
+
+    with pytest.raises(FakeCodeError) as exc_info:
+        await c.call_tool("slow")
+
+    assert exc_info.value is error
+
+
+async def test_modern_call_tool_resets_http_client_after_deadline(monkeypatch):
+    c = _cli(
+        HttpStatelessClient,
+        "modern",
+        lambda request: _disc(_rid(request)),
+        tool_call_timeout=0.01,
+    )
+    await c.connect()
+    old_http = c._http
+    c._tools_listed = True
+
+    async def slow_call(*_args, **_kwargs):
+        await asyncio.sleep(0.05)
+
+    monkeypatch.setattr(c, "_rpc", slow_call)
+
+    try:
+        with pytest.raises(
+            TimeoutError,
+            match=r"timed out after 0\.01s",
+        ):
+            await c.call_tool("slow")
+
+        assert old_http is not None and old_http.is_closed
+        assert c._http is not None and c._http is not old_http
+        assert not c._http.is_closed
+        assert c.is_connected is True
+    finally:
+        await c.close()
+
+
 async def test_modern_call_tool_maps_grouped_http_timeout(monkeypatch):
     c = HttpStatelessClient(
         "modern",

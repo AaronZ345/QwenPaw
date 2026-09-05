@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
-from pydantic import Field
+from mcp.shared.exceptions import McpError
+from pydantic import BeforeValidator, Field
 from pydantic.fields import FieldInfo
 
 DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS: float = 60 * 5
@@ -21,19 +22,43 @@ MCP_TOOL_CALL_TIMEOUT_DESCRIPTION = (
 )
 
 
-def is_mcp_request_timeout(exc: BaseException) -> bool:
+def _reject_boolean_timeout(value: Any) -> Any:
+    if isinstance(value, bool):
+        raise ValueError("must be a positive number")
+    return value
+
+
+MCPToolCallTimeout = Annotated[
+    float,
+    BeforeValidator(_reject_boolean_timeout),
+]
+
+
+def is_mcp_request_timeout(
+    exc: BaseException,
+    *,
+    json_rpc_error_type: type[BaseException] | None = None,
+) -> bool:
     """Return whether an exception tree represents an MCP request timeout."""
-    if isinstance(exc, httpx.TimeoutException):
+    if isinstance(exc, httpx.ReadTimeout):
         return True
-    error = getattr(exc, "error", None)
+    if isinstance(exc, McpError):
+        error = getattr(exc, "error", None)
+        if getattr(error, "code", None) == MCP_REQUEST_TIMEOUT_CODE:
+            return True
     if (
-        getattr(exc, "code", None) == MCP_REQUEST_TIMEOUT_CODE
-        or getattr(error, "code", None) == MCP_REQUEST_TIMEOUT_CODE
+        json_rpc_error_type is not None
+        and isinstance(exc, json_rpc_error_type)
+        and getattr(exc, "code", None) == MCP_REQUEST_TIMEOUT_CODE
     ):
         return True
     sub_excs = getattr(exc, "exceptions", None)
     return bool(sub_excs) and all(
-        is_mcp_request_timeout(item) for item in sub_excs
+        is_mcp_request_timeout(
+            item,
+            json_rpc_error_type=json_rpc_error_type,
+        )
+        for item in sub_excs
     )
 
 
@@ -61,6 +86,7 @@ def parse_mcp_tool_call_timeout(value: Any) -> float:
     """Parse a configured MCP tool-call timeout in seconds."""
     if value is None:
         raise ValueError("must be provided when present")
+    _reject_boolean_timeout(value)
     if isinstance(value, str):
         if not value.strip():
             raise ValueError("must be a positive number")
