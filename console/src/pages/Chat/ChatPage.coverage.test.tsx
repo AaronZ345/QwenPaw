@@ -24,6 +24,8 @@ const {
   mockSetSelectedAgent,
   mockGetTranscriptionProviderType,
   mockCopyText,
+  mockBeginLoopModeSubmission,
+  mockRequiresQwenPawModel,
 } = vi.hoisted(() => ({
   mockListProviders: vi.fn(),
   mockGetActiveModels: vi.fn(),
@@ -34,6 +36,8 @@ const {
   mockSetSelectedAgent: vi.fn(),
   mockGetTranscriptionProviderType: vi.fn(),
   mockCopyText: vi.fn().mockResolvedValue(undefined),
+  mockBeginLoopModeSubmission: vi.fn((text: string) => text),
+  mockRequiresQwenPawModel: vi.fn(() => true),
 }));
 
 let capturedOptions: any = null;
@@ -251,7 +255,7 @@ vi.mock("@/stores/loopStore", () => ({
       })),
     },
   ),
-  beginLoopModeSubmission: vi.fn((text: string) => text),
+  beginLoopModeSubmission: mockBeginLoopModeSubmission,
   fetchActiveLoopMode: vi.fn(() => Promise.resolve(null)),
   fetchAvailableLoopModes: vi.fn(() => Promise.resolve([])),
   markLoopModeRunning: vi.fn(),
@@ -342,7 +346,7 @@ vi.mock("@/stores/messageQueueStore", () => ({
 }));
 
 vi.mock("@/utils/agentBackend", () => ({
-  requiresQwenPawModel: vi.fn(() => true),
+  requiresQwenPawModel: mockRequiresQwenPawModel,
   supportsAgentAttachments: vi.fn(() => true),
 }));
 
@@ -525,6 +529,10 @@ describe("ChatPage coverage", () => {
     capturedOptions = null;
     mockCopyText.mockClear();
     localStorage.removeItem("qwenpaw_chat_scroll_locked");
+    mockBeginLoopModeSubmission.mockReset();
+    mockBeginLoopModeSubmission.mockImplementation((text: string) => text);
+    mockRequiresQwenPawModel.mockReset();
+    mockRequiresQwenPawModel.mockReturnValue(true);
     mockListProviders.mockResolvedValue([
       {
         id: "openai",
@@ -1086,21 +1094,64 @@ describe("ChatPage coverage", () => {
     }
   });
 
-  // ── handleBeforeSubmit: non-owner tab enqueues ─────────────────────────
-  it("handleBeforeSubmit returns false for non-owner tab and enqueues", async () => {
+  // ── handleBeforeSubmit: SDK query override ─────────────────────────────
+  it("returns the prepared query after the SDK captures input data", async () => {
+    mockBeginLoopModeSubmission.mockImplementation(
+      (text: string) => `/goal ${text}`,
+    );
     renderWithProviders(<ChatPage />, {
       initialEntries: ["/chat/test-session"],
     });
     await screen.findByTestId("chat-ui");
 
     const beforeSubmit = capturedOptions?.sender?.beforeSubmit;
-    if (typeof beforeSubmit === "function") {
-      // The default mock makes the component an owner (holdOwnershipLock calls cb immediately)
-      // So beforeSubmit should return true for owner
-      const result = await beforeSubmit();
-      // Owner path: returns true
-      expect(typeof result).toBe("boolean");
-    }
+    expect(typeof beforeSubmit).toBe("function");
+
+    const inputData = {
+      query: "do the task",
+      fileList: [
+        {
+          uid: "file-1",
+          name: "notes.txt",
+          response: { url: "/files/notes.txt" },
+        },
+      ],
+      mentions: [{ value: "@reviewer", type: "user" }],
+    };
+    const capturedQuery = inputData.query;
+    const result = await beforeSubmit(inputData);
+    const submitted = {
+      ...inputData,
+      query:
+        typeof result === "object" && result.query !== undefined
+          ? result.query
+          : capturedQuery,
+    };
+
+    expect(result).toEqual({
+      proceed: true,
+      query: "/goal do the task",
+    });
+    expect(submitted.query).toBe("/goal do the task");
+    expect(submitted.fileList).toEqual(inputData.fileList);
+    expect(submitted.mentions).toEqual(inputData.mentions);
+  });
+
+  it("leaves the query unchanged for a non-QwenPaw backend", async () => {
+    mockRequiresQwenPawModel.mockReturnValue(false);
+    mockBeginLoopModeSubmission.mockImplementation(
+      (text: string) => `/goal ${text}`,
+    );
+    renderWithProviders(<ChatPage />, {
+      initialEntries: ["/chat/test-session"],
+    });
+    await screen.findByTestId("chat-ui");
+
+    const beforeSubmit = capturedOptions?.sender?.beforeSubmit;
+    const result = await beforeSubmit({ query: "do the task" });
+
+    expect(result).toEqual({ proceed: true, query: "do the task" });
+    expect(mockBeginLoopModeSubmission).not.toHaveBeenCalled();
   });
 
   // ── sender attachments trigger renders ─────────────────────────────────
