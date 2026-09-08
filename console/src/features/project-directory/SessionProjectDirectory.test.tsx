@@ -572,9 +572,15 @@ describe("SessionProjectDirectory session scope direct path input (#7588)", () =
     expect(
       await screen.findByText("Not a directory: /nope"),
     ).toBeInTheDocument();
-    // Previously bound directories are still rendered.
-    expect(screen.getByText("/projects/alpha")).toBeInTheDocument();
-    expect(screen.getByText("/projects/beta")).toBeInTheDocument();
+    await user.hover(
+      screen.getByRole("button", {
+        name: "projectDirectory.sessionTitle",
+      }),
+    );
+    // The trigger tooltip may duplicate the primary path in a portal.
+    // Query the bound directory rows themselves.
+    expect(screen.getByTitle("/projects/alpha")).toBeInTheDocument();
+    expect(screen.getByTitle("/projects/beta")).toBeInTheDocument();
   });
 
   it("does nothing destructive on Enter with the current primary", async () => {
