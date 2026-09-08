@@ -136,6 +136,16 @@ def test_legacy_stdio_config_accepts_timeout_alias() -> None:
     assert config.tool_call_timeout == 6.0
 
 
+def test_legacy_stdio_config_treats_none_timeout_as_unset() -> None:
+    config = MCPClientConfig(
+        name="stdio-server",
+        command="python",
+        timeout=None,
+    )
+
+    assert config.tool_call_timeout == DEFAULT_MCP_TOOL_CALL_TIMEOUT_SECONDS
+
+
 @pytest.mark.parametrize(
     "config",
     [
