@@ -2426,7 +2426,7 @@ class MCPClientConfig(BaseModel):
         if payload.get("tool_call_timeout") is None:
             if (
                 payload.get("transport", "stdio") == "stdio"
-                and "timeout" in payload
+                and payload.get("timeout") is not None
             ):
                 payload["tool_call_timeout"] = payload["timeout"]
             else:
