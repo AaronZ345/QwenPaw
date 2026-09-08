@@ -242,7 +242,20 @@ class _MCPClientMixin:
                         stack,
                     )
 
-                    self.session = ClientSession(read_stream, write_stream)
+                    read_timeout = getattr(
+                        self,
+                        "read_timeout_seconds",
+                        None,
+                    )
+                    self.session = ClientSession(
+                        read_stream,
+                        write_stream,
+                        read_timeout_seconds=(
+                            timedelta(seconds=read_timeout)
+                            if read_timeout is not None
+                            else None
+                        ),
+                    )
                     await stack.enter_async_context(self.session)
                     await self.session.initialize()
 
