@@ -429,7 +429,7 @@ describe("LocalModelManageModal", () => {
       });
 
       // type the repo ID
-      const input = screen.getByPlaceholderText(
+      const input = await screen.findByPlaceholderText(
         "models.localRepoIdPlaceholder",
       );
       await user.type(input, "custom/model");
