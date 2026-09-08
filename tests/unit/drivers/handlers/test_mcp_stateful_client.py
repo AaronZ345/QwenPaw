@@ -31,6 +31,7 @@ from qwenpaw.drivers.errors import DriverCardError
 from qwenpaw.drivers.handlers.mcp import MCPDriverHandler
 from qwenpaw.drivers.handlers.mcp_stateful_client import (
     HttpStatefulClient,
+    StdIOStatefulClient,
     _is_401_error,
     _is_transport_error,
 )
@@ -935,6 +936,46 @@ def test_http_client_read_timeout_covers_tool_call_timeout():
 
     assert c.sse_read_timeout == 600
     assert not hasattr(c, "read_timeout_seconds")
+
+
+async def test_stdio_client_passes_read_timeout_to_sdk_session(monkeypatch):
+    c = StdIOStatefulClient(
+        "stdio-client",
+        "run-server",
+        read_timeout_seconds=17,
+    )
+    captured: dict[str, object] = {}
+
+    class FakeSession:
+        def __init__(
+            self,
+            read_stream,
+            write_stream,
+            read_timeout_seconds=None,
+        ) -> None:
+            del read_stream, write_stream
+            captured["read_timeout_seconds"] = read_timeout_seconds
+
+        async def initialize(self):
+            return self
+
+        __aenter__ = initialize
+
+        async def __aexit__(self, *_args):
+            return None
+
+    async def setup(_stack):
+        return object(), object()
+
+    monkeypatch.setattr(mod, "ClientSession", FakeSession)
+    monkeypatch.setattr(c, "_setup_transport", setup)
+    task = asyncio.create_task(c._run_lifecycle())
+    try:
+        await asyncio.wait_for(c._ready_event.wait(), timeout=1)
+        assert captured["read_timeout_seconds"] == timedelta(seconds=17)
+    finally:
+        c._stop_event.set()
+        await asyncio.wait_for(task, timeout=1)
 
 
 @pytest.mark.parametrize(
