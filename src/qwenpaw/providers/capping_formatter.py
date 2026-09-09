@@ -22,7 +22,6 @@ model via the ``formatter=`` constructor kwarg.
 
 from __future__ import annotations
 
-import base64
 from typing import Any, ClassVar
 
 # The capping formatters below override agentscope's ``_format_*_source``
@@ -224,38 +223,6 @@ class _CappingAnthropicFormatter(
     max_video_bytes: int | None = Field(default=None, ge=0)
     max_audio_bytes: int | None = Field(default=None, ge=0)
 
-    def _format_anthropic_source(
-        self,
-        source: URLSource | Base64Source,
-        block_type: str,
-    ) -> dict[str, Any]:
-        if block_type == "image":
-            return super()._format_image_source(source)
-        if isinstance(source, Base64Source):
-            return {
-                "type": block_type,
-                "source": {
-                    "type": "base64",
-                    "media_type": source.media_type,
-                    "data": source.data,
-                },
-            }
-        if isinstance(source, URLSource) and str(source.url).startswith(
-            "file://",
-        ):
-            file_path = str(source.url).removeprefix("file://")
-            with open(file_path, "rb") as handle:
-                data = base64.b64encode(handle.read()).decode("utf-8")
-            return {
-                "type": block_type,
-                "source": {
-                    "type": "base64",
-                    "media_type": source.media_type,
-                    "data": data,
-                },
-            }
-        raise ValueError(f"Unsupported Anthropic {block_type} source")
-
     def _format_source(
         self,
         source: URLSource | Base64Source,
@@ -267,7 +234,7 @@ class _CappingAnthropicFormatter(
         unprepared = self._unprepared_local_placeholder(source, block_type)
         if unprepared is not None:
             return unprepared
-        return self._format_anthropic_source(source, block_type)
+        return super()._format_source(source, block_type)
 
 
 class _CappingGeminiFormatter(GeminiChatFormatter, CappingFormatterMixin):
