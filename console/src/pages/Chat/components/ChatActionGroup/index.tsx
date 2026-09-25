@@ -86,7 +86,11 @@ const ChatActionGroup: React.FC<ChatActionGroupProps> = ({
             aria-pressed={showToolCalls}
             icon={
               showToolCalls ? (
-                <Eye size={16} strokeWidth={2} style={{ width: 16, height: 16 }} />
+                <Eye
+                  size={16}
+                  strokeWidth={2}
+                  style={{ width: 16, height: 16 }}
+                />
               ) : (
                 <EyeOff
                   size={16}
