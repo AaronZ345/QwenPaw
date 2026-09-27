@@ -859,17 +859,60 @@ async def test_modern_call_tool_maps_http_timeout(monkeypatch):
     c.is_connected = True
     c._http = object()  # type: ignore[assignment]
     c._tools_listed = True
+    resets: list[str] = []
+
+    async def reset_client() -> None:
+        resets.append("reset")
 
     async def read_timeout(*_args, **_kwargs):
         raise httpx.ReadTimeout("read timed out")
 
     monkeypatch.setattr(c, "_rpc", read_timeout)
+    monkeypatch.setattr(
+        c,
+        "_reset_http_client_after_deadline",
+        reset_client,
+    )
 
     with pytest.raises(
         TimeoutError,
         match="MCP tool call 'slow' on client 'modern' timed out after 0.01s",
     ):
         await c.call_tool("slow")
+    assert resets == ["reset"]
+
+
+async def test_modern_call_tool_resets_http_client_after_caller_cancel(
+    monkeypatch,
+):
+    c = HttpStatelessClient(
+        "modern",
+        "streamable_http",
+        "http://mcp.test/mcp",
+        tool_call_timeout=10,
+    )
+    c.is_connected = True
+    c._http = object()  # type: ignore[assignment]
+    c._tools_listed = True
+    resets: list[str] = []
+    hold = asyncio.Event()
+
+    async def wait_for_cancel(*_args, **_kwargs):
+        await hold.wait()
+
+    async def reset_client() -> None:
+        resets.append("reset")
+
+    monkeypatch.setattr(c, "_rpc", wait_for_cancel)
+    monkeypatch.setattr(c, "_reset_http_client_after_deadline", reset_client)
+
+    call = asyncio.create_task(c.call_tool("slow"))
+    await asyncio.sleep(0.01)
+    call.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await call
+    assert resets == ["reset"]
 
 
 @pytest.mark.parametrize(

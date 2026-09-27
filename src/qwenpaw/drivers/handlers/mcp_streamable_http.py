@@ -584,8 +584,8 @@ class HttpStatelessClient(_HttpClientBase):
         self._tools_listed = False
 
     def _new_http_client(self) -> httpx.AsyncClient:
-        timeout = _timeout_seconds(self.timeout)
-        read_timeout = _timeout_seconds(self.sse_read_timeout)
+        timeout = timeout_seconds(self.timeout)
+        read_timeout = timeout_seconds(self.sse_read_timeout)
         return _AsyncClient(
             headers=_headers_without_session_id(self.headers),
             timeout=httpx.Timeout(
@@ -762,6 +762,7 @@ class HttpStatelessClient(_HttpClientBase):
         except BaseException:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+            await self._reset_http_client_after_deadline()
             raise
         if not done:
             task.cancel()
@@ -779,6 +780,7 @@ class HttpStatelessClient(_HttpClientBase):
                 json_rpc_error_type=_JsonRpcError,
             ):
                 raise
+            await self._reset_http_client_after_deadline()
             raise TimeoutError(
                 f"MCP tool call '{name}' on client '{self.name}' timed "
                 f"out after {self.tool_call_timeout:g}s",

@@ -21,6 +21,7 @@ import logging
 import random
 import time
 from contextlib import AsyncExitStack
+from datetime import timedelta
 from typing import Any, Literal
 
 import httpx
